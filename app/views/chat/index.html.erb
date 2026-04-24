@@ -1,0 +1,136 @@
+<% content_for :title, "SmartChatBot" %>
+
+<div
+  class="chat-site-shell"
+  data-controller="chat-widget"
+  data-chat-widget-history-value="<%= @messages.to_json %>"
+  data-chat-widget-endpoint-value="<%= url_for('/chat/message') %>"
+>
+  <main class="chat-site-hero">
+    <section class="chat-site-copy">
+      <p class="chat-site-eyebrow">AI shopping concierge</p>
+      <h1>Help shoppers like a real website chatbot, not a plain demo box.</h1>
+      <p class="chat-site-lead">
+        Answer product questions, recommend items instantly, and keep the conversation ready in a polished floating widget.
+      </p>
+
+      <div class="chat-site-actions">
+        <button
+          type="button"
+          class="chat-site-primary"
+          data-action="chat-widget#open"
+        >
+          Open assistant
+        </button>
+        <p class="chat-site-note">The launcher stays fixed at the bottom-right, like a production storefront assistant.</p>
+      </div>
+
+      <div class="chat-site-metrics">
+        <article>
+          <strong>24/7</strong>
+          <span>Instant replies</span>
+        </article>
+        <article>
+          <strong>Smart</strong>
+          <span>Product matching</span>
+        </article>
+        <article>
+          <strong>Fast</strong>
+          <span>Cache-aware answers</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="chat-site-preview" aria-hidden="true">
+      <div class="chat-preview-window">
+        <div class="chat-preview-topbar">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <div class="chat-preview-bubbles">
+          <div class="chat-preview-bubble assistant">
+            Looking for a phone under ₹20,000 with a good camera?
+          </div>
+          <div class="chat-preview-bubble user">
+            Yes, and I prefer long battery life too.
+          </div>
+          <div class="chat-preview-card">
+            <h3>Assistant recommendation</h3>
+            <p>I found 3 options with strong camera ratings, all-day battery, and budget-friendly pricing.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <button
+    type="button"
+    class="chat-launcher"
+    aria-label="Open chatbot"
+    data-action="chat-widget#toggle"
+    data-chat-widget-target="launcher"
+  >
+    <span class="chat-launcher-icon">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3C6.925 3 3 6.658 3 11.19c0 2.353 1.07 4.45 2.893 5.893V21l3.634-2.007c.484.071.978.107 1.473.107 5.075 0 9-3.659 9-8.19S17.075 3 12 3Zm-4.25 9.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Zm4.25 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Zm4.25 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Z"/>
+      </svg>
+    </span>
+    <span class="chat-launcher-text">
+      <strong>Chat with us</strong>
+      <small>Product help in seconds</small>
+    </span>
+  </button>
+
+  <section
+    class="chat-widget"
+    aria-label="Shopping assistant"
+    aria-hidden="true"
+    data-chat-widget-target="panel"
+  >
+    <header class="chat-widget-header">
+      <div>
+        <p class="chat-widget-kicker">Support Assistant</p>
+        <h2>Smart shopping help</h2>
+        <span>Usually replies in a few seconds</span>
+      </div>
+
+      <button
+        type="button"
+        class="chat-widget-close"
+        aria-label="Close chatbot"
+        data-action="chat-widget#close"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4Z"/>
+        </svg>
+      </button>
+    </header>
+
+    <div class="chat-widget-body">
+      <div class="chat-widget-messages" data-chat-widget-target="messages">
+        <div class="chat-message chat-message-assistant">
+          <div class="chat-avatar">AI</div>
+          <div class="chat-bubble">
+            <p>Hello. Ask about products, prices, recommendations, or comparisons.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <form class="chat-widget-form" data-action="submit->chat-widget#submit">
+      <label class="sr-only" for="chat-query">Ask a question</label>
+      <textarea
+        id="chat-query"
+        class="chat-widget-input"
+        rows="1"
+        placeholder="Ask about products, features, pricing, or best options..."
+        data-action="input->chat-widget#resizeInput keydown->chat-widget#handleKeydown"
+        data-chat-widget-target="input"
+      ></textarea>
+      <button type="submit" class="chat-widget-send" data-chat-widget-target="submit">
+        Send
+      </button>
+    </form>
+  </section>
+</div>
