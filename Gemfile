@@ -26,7 +26,7 @@ gem "pgvector"
 # Background Jobs (AI runs in background)
 # gem "sidekiq"               # Background processing
 gem "sidekiq", "~> 7.0"
-gem "sidekiq-scheduler", "~> 5.0"
+gem "sidekiq-scheduler", "~> 6.0"
 gem "redis", "~> 5.0"
 gem "connection_pool", "~> 2.4"
 
