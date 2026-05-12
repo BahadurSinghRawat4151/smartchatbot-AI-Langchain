@@ -6,13 +6,39 @@ export default class extends Controller {
 
   connect() {
     this.opened = false
+    console.log("History:", this.historyValue) 
     this.renderHistory()
     this.resizeInput()
+  }
+
+  renderProductCards(products) {
+    const container = document.createElement("div")
+    container.className = "product-grid"
+
+    products.forEach(product => {
+      const card = document.createElement("div")
+      card.className = "product-card"
+
+      card.innerHTML = `
+        <img src="${product.image}" class="product-image" />
+        <h3>${product.name}</h3>
+        <p>${product.brand}</p>
+        <p>₹${product.price}</p>
+        <button data-id="${product.id}" class="add-to-cart-btn">
+          Add to Cart
+        </button>
+      `
+
+      container.appendChild(card)
+    })
+
+    this.messagesTarget.appendChild(container)
   }
 
   toggle() {
     this.opened ? this.close() : this.open()
   }
+  
 
   open() {
     this.opened = true
@@ -60,8 +86,36 @@ export default class extends Controller {
         throw new Error(payload.error || "Unable to send message")
       }
 
+     
+// alert(messagesTarget)
       typingNode.remove()
-      this.appendMessage("assistant", payload.response, payload.products, payload.cache_hit)
+      // if (payload.checkout_url) {
+      //   window.location.href = payload.checkout_url
+      //   return
+      // }
+
+     if (payload.intent === "checkout") {
+        await this.handleCheckout()
+        return
+      }
+
+      // Handle navigation commands from the agent tools
+      if (payload.navigation) {
+        const targetUrl = payload.navigation.url || payload.navigation.path;
+        if (targetUrl) {
+          window.location.href = targetUrl;
+          return;
+        }
+      }
+
+      console.log("Received response:", payload.checkout_url); // Debug log for response payload
+      
+
+      // if (payload.products && payload.products.length > 0) {
+      //   this.renderProductCards(payload.products)
+      // }
+
+      this.appendMessage("assistant", payload.response, payload.products, payload.cache_hit, payload.cart_url, payload.checkout_url)
     } catch (error) {
       typingNode.remove()
       this.appendMessage("assistant", error.message || "Something went wrong. Please try again.")
@@ -91,8 +145,10 @@ export default class extends Controller {
       this.appendMessage(entry.role, entry.content)
     })
   }
+   // Debug log for history value
+  
 
-  appendMessage(role, content, products = [], cacheHit = false) {
+  appendMessage(role, content, products = [], cacheHit = false,cartUrl = null,checkoutUrl = null) {
     const wrapper = document.createElement("article")
     wrapper.className = `chat-message chat-message-${role}`
 
@@ -118,6 +174,39 @@ export default class extends Controller {
       bubble.appendChild(this.buildProducts(products))
     }
 
+   // ✅ Buttons container
+if (role === "assistant" && (cartUrl || checkoutUrl)) {
+  const actions = document.createElement("div")
+  actions.className = "chat-actions"
+  actions.style.display = "grid"
+
+  if (cartUrl) {
+    const cartBtn = document.createElement("a")
+    cartBtn.href = cartUrl
+    cartBtn.style.marginTop = "1rem"
+    cartBtn.style.background="pink"
+    cartBtn.style.textAlign="center"
+    cartBtn.style.border="none"
+    cartBtn.style.textDecoration = "none"
+    cartBtn.className = "view-cart-btn"
+    cartBtn.textContent = "🛒 View Cart"
+    actions.appendChild(cartBtn)
+  }
+
+  if (checkoutUrl) {
+  const checkoutBtn = document.createElement("button")
+  checkoutBtn.className = "checkout-btn"
+  checkoutBtn.style.marginTop = "1rem"
+  checkoutBtn.textContent = "🛍️ Checkout Now"
+
+  checkoutBtn.onclick = this.handleCheckout.bind(this)
+
+  actions.appendChild(checkoutBtn)
+}
+
+
+  bubble.appendChild(actions)
+}
     if (role === "user") {
       wrapper.appendChild(bubble)
       wrapper.appendChild(avatar)
@@ -153,23 +242,47 @@ export default class extends Controller {
     const grid = document.createElement("div")
     grid.className = "chat-product-grid"
 
-    products.forEach((product) => {
+    products.forEach(product => {
       const card = document.createElement("section")
       card.className = "chat-product-card"
+      console.log("Building product card for:", product) // Debug log for product data
+     
+        const imageUrl =
+          product.image && product.image.length > 0
+            ? product.image[0]   // first image
+            : null
+        console.log("Selected image URL:", imageUrl) // Debug log for selected image URL
+        const imageHtml = imageUrl
+          ? `<img src="${this.escape(imageUrl)}"
+                alt="${this.escape(product.name || "Product")}"
+                style="width: 100%; aspect-ratio: 6 / 4; object-fit: cover; border-radius: 4px; margin-bottom: 1rem;" />`
+          : `<div style="width: 100%; aspect-ratio: 6 / 4; background: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 4px; margin-bottom: 1rem;">
+              <img src="" style="width: 50px; height: 50px; opacity: 0.5;" />
+            </div>`
+
       card.innerHTML = `
-        <h3>${this.escape(product.name || "Recommended product")}</h3>
-        <p>${this.escape(product.description || "Product details available in chat.")}</p>
+        ${imageHtml}
+        <p><strong>${this.escape(product.name || "Unnamed Product")}</strong></p>
         <dl>
           <div><dt>Brand</dt><dd>${this.escape(product.brand || "N/A")}</dd></div>
           <div><dt>Category</dt><dd>${this.escape(product.category || "N/A")}</dd></div>
           <div><dt>Price</dt><dd>${this.escape(product.price || "N/A")}</dd></div>
+          <div style="margin-top: 12px; display: flex; gap: 8px;">
+            <button type="button" class="chat-product-btn" data-action="click->chat-widget#addToCart" data-product-id="${this.escape(product.id || product.product_id)}" style="flex: 1; padding: 6px 0; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; background: #fff; font-size: 0.85rem;">Add to Cart</button>
+            <a href="/products/${this.escape(product.id || product.product_id)}" class="chat-product-btn" style="flex: 1; padding: 6px 0; text-align: center; background: pink; border-radius: 6px; text-decoration: none; color: inherit; font-size: 0.85rem; border: 1px solid transparent; box-sizing: border-box;">View Details</a>
+          </div>
         </dl>
       `
+
+   
       grid.appendChild(card)
     })
+    //  <p class="description">${this.escape(product.description || "Product details available in chat.")}</p>
 
     return grid
   }
+
+
 
   setBusy(state) {
     this.submitTarget.disabled = state
@@ -185,5 +298,62 @@ export default class extends Controller {
     const node = document.createElement("div")
     node.textContent = `${value}`
     return node.innerHTML
+  }
+
+  async handleCheckout() {
+    try {
+      const res = await fetch("/checkout", {
+        method: "POST",
+        headers: {
+          "X-CSRF-Token": document.querySelector("meta[name='csrf-token']").content,
+          "Accept": "application/json"
+        }
+      })
+
+      const data = await res.json()
+
+      if (data.url) {
+        window.location.href = data.url
+      }
+    } catch (e) {
+      console.error(e)
+      alert("Checkout failed")
+    }
+  }
+
+  // async handleCart() {
+   
+  // }
+
+  async addToCart(event) {
+    event.preventDefault()
+    const btn = event.currentTarget
+    const productId = btn.dataset.productId
+    if (!productId) return
+
+    btn.disabled = true
+    const originalText = btn.textContent
+    btn.textContent = "Adding..."
+
+    try {
+      const res = await fetch(`/cart/add_item?product_id=${productId}`, {
+        method: "POST",
+        headers: {
+          "X-CSRF-Token": document.querySelector("meta[name='csrf-token']").content,
+          "Accept": "application/json"
+        }
+      })
+
+      if (res.ok) {
+        btn.textContent = "Added!"
+        setTimeout(() => { btn.textContent = originalText; btn.disabled = false }, 2000)
+      } else {
+        throw new Error("Failed to add to cart")
+      }
+    } catch (e) {
+      console.error("Cart error:", e)
+      btn.textContent = "Error"
+      setTimeout(() => { btn.textContent = originalText; btn.disabled = false }, 2000)
+    }
   }
 }

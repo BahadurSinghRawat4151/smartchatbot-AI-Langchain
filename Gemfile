@@ -24,8 +24,15 @@ gem "hugging-face"
 gem "faraday"
 gem "pgvector"
 # Background Jobs (AI runs in background)
-gem "sidekiq"               # Background processing
-gem "redis"
+# gem "sidekiq"               # Background processing
+gem "sidekiq", "~> 7.0"
+gem "sidekiq-scheduler", "~> 5.0"
+gem "redis", "~> 5.0"
+gem "connection_pool", "~> 2.4"
+
+# Optional: For better Redis monitoring
+gem "redis-namespace", "~> 1.10"
+
 gem "dotenv-rails"               # Required by Sidekiq
 # For processing images (e.g., resizing)
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
@@ -46,7 +53,8 @@ gem "bootsnap", require: false
 
 # Deploy this application anywhere as a Docker container [https://kamal-deploy.org]
 gem "kamal", require: false
-
+gem "stripe"
+gem "groq", "~> 0.3.2"
 # Add HTTP asset caching/compression and X-Sendfile acceleration to Puma [https://github.com/basecamp/thruster/]
 gem "thruster", require: false
 

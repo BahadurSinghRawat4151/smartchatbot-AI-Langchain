@@ -1,0 +1,60 @@
+<% content_for :title, "#{@product.name} | SmartChatBot" %>
+
+<main class="product-detail-shell">
+  <nav class="product-detail-breadcrumb" aria-label="Product navigation">
+    <%= link_to "Products", products_path %>
+    <span>/</span>
+    <span><%= @product.name %></span>
+  </nav>
+
+  <section class="product-detail">
+    <div class="product-detail-media" aria-hidden="true">
+      <% image_src = @product.try(:image_url).presence || (@product.respond_to?(:images) ? @product.images&.first : nil) %>
+      <% if image_src.present? %>
+        <%= image_tag image_src, alt: @product.name, class: "product-detail-image", style: "width: 100%; height: 100%; max-height: 380px; object-fit: contain; padding: 24px; border-radius: 28px;" %>
+      <% else %>
+        <span><%= @product.name.to_s.first&.upcase || "P" %></span>
+      <% end %>
+    </div>
+
+    <div class="product-detail-info">
+      <p class="product-detail-meta">
+        <%= [@product.brand, @product.category].compact_blank.join(" • ") %>
+      </p>
+
+      <h1><%= @product.name %></h1>
+
+      <div class="product-detail-description" style="margin-top: 1.5rem; font-size: 0.95rem;">
+        <%= sanitize(@product.description).presence || "Product details are available from the shopping assistant." %>
+      </div>
+
+      <div class="product-detail-price-row">
+        <strong>₹<%= @product.price %></strong>
+        <% if @product.stock.to_i.positive? %>
+          <span class="stock-pill stock-pill-available"><%= @product.stock %> in stock</span>
+        <% else %>
+          <span class="stock-pill stock-pill-empty">Out of stock</span>
+        <% end %>
+      </div>
+
+      <div class="product-detail-actions">
+        <%= button_to "Add to Cart", add_item_cart_path(product_id: @product.id), method: :post, class: "product-primary-action", disabled: @product.stock.to_i <= 0 %>
+        <%= link_to "Back to Products", products_path, class: "product-secondary-action" %>
+      </div>
+
+      <% if @product.specifications.present? %>
+        <section class="product-specs">
+          <h2>Specifications</h2>
+          <dl>
+            <% @product.specifications.each do |key, value| %>
+              <div>
+                <dt><%= key.to_s.humanize %></dt>
+                <dd><%= value %></dd>
+              </div>
+            <% end %>
+          </dl>
+        </section>
+      <% end %>
+    </div>
+  </section>
+</main>

@@ -2,31 +2,38 @@
 
 class Ai::ChatService
   class Error < StandardError; end
+SYSTEM_PROMPT = <<~PROMPT
+You are "Nova" — a smart, friendly, multilingual AI shopping assistant.
 
-  SYSTEM_PROMPT = <<~PROMPT
-    You are a smart multilingual e-commerce assistant.
+## 💬 RESPONSE RULES
+- You are handling a general or off-topic conversation.
+- Be friendly, human, and helpful
+- Keep it short and clean
+- Match user language exactly
+- If the user asks for specific products or shopping actions, gently guide them to ask again so the main shopping system can process it.
 
-    Your responsibilities:
-    1. Recommend products based on user needs
-    2. Answer product related questions clearly
-    3. Resolve any customer issues helpfully
-    4. Always use the provided product list as your knowledge base. Do NOT make up products.
-    5. List of products will be provided in the context. Refer to it for all product information.
-    6.List product and their quantity is user ask for it. If user ask for 2 quantity of product then you have to check that in product list and if it is available then you can add that in your response otherwise you have to tell user that it is not available.
-    7.Always refer product_loader_service.rb for product information and availability. Do NOT make up products or their availability.
-    8.Don't Entertain or chat about anything other than shopping and products. Politely steer back if user tries to discuss unrelated topics.
+---
 
-      Important:
-      1. ALWAYS use the provided product list as your knowledge base. Do NOT make up products.
-      2. ALWAYS ask clarifying questions if user query is vague or could match multiple products.
-      3. ALWAYS include relevant product details (name, brand, price, description) in your responses when recommending or discussing products.
+## 🌐 LANGUAGE RULE
 
-    9. ALWAYS reply in the EXACT same language the user wrote in
-       (Hindi → Hindi, Arabic → Arabic, English → English)
+- ALWAYS reply in user's language
+- Match tone (Hinglish, Hindi, English, etc.)
 
-    Keep responses friendly, helpful and concise.
-    Reasoning: medium
-  PROMPT
+---
+
+## 🚫 BOUNDARIES
+
+- Only shopping-related queries
+- Redirect off-topic politely
+
+---
+
+## 🎯 PERSONALITY
+
+- Friendly like a real store assistant
+- Light enthusiasm (not robotic)
+- No over-explaining
+PROMPT
 
   def initialize
     @langchain_client = Ai::LangchainClientService.new
@@ -34,31 +41,49 @@ class Ai::ChatService
       <<~TEMPLATE
         #{SYSTEM_PROMPT}
 
+        Current intent:
+        {intent}
+
+        Tool Context:
+        {tool_context}
+
+        Relevant User History:
+        {memory_context}
+
         Available Products:
         {product_context}
       TEMPLATE
     )
   end
 
-  def respond(query:, products:, session_id:)
-    # Build product context for AI
+  def respond(query:, products:,  user_id:, intent: :product, memory: [], tool_context: nil, save_conversation: true)
     product_context = format_products(products)
 
-    # Get conversation history (Step 10)
-    history = Message.history_for(session_id)
+    # 1. Pull old, summarized memory from DB
+    # db_summaries = Message.history_for_user(user_id).map do |m|
+    #   m.is_a?(Hash) ? m.symbolize_keys.slice(:role, :content) : { role: m.role, content: m.content }
+    # end
 
-    # Build messages array
+    # 2. Pull active, recent turns from Redis
+    active_redis_history = Ai::UserMemoryService.new.get_active_conversation(user_id).map do |m|
+      m.is_a?(Hash) ? m.symbolize_keys.slice(:role, :content) : { role: m.role, content: m.content }
+    end
+
+    # 3. Combine both into the unified LLM context
+    history = active_redis_history
+
     messages = build_messages(
       query:           query,
+      intent:          intent,
+      tool_context:    tool_context,
       product_context: product_context,
+      memory_context:  format_memory(memory),
       history:         history
     )
 
-    # Call gpt-oss-120b (Steps 6,7)
     response = call_llm(messages)
 
-    # Step 10 — Save to conversation memory
-    save_messages(session_id, query, response)
+    save_messages(user_id, query, response) if save_conversation
 
     response
   end
@@ -70,16 +95,29 @@ class Ai::ChatService
 
     products.map.with_index(1) do |p, i|
       specs = p.specifications.present? ? " | Specs: #{p.specifications.to_json}" : ""
-      "#{i}. #{p.name} | Brand: #{p.brand} | Price: ₹#{p.price} | #{p.description}#{specs}"
+      "#{i}. #{p.image_url}| #{p.name} | Brand: #{p.brand} | Price: ₹#{p.price} | #{p.description}#{specs}"
     end.join("\n")
   end
 
-  def build_messages(query:, product_context:, history:)
-    system = @prompt_template.format(product_context: product_context)
+  def format_memory(memory)
+    return "No relevant semantic history found." if memory.blank?
+
+    memory.map do |entry|
+      "#{entry[:role]}: #{entry[:content]}"
+    end.join("\n")
+  end
+
+  def build_messages(query:, intent:, tool_context:, product_context:, memory_context:, history:)
+    system = @prompt_template.format(
+      intent: intent,
+      tool_context: tool_context.presence || "No tool context provided.",
+      memory_context: memory_context,
+      product_context: product_context
+    )
 
     [
       { role: "system",    content: system },
-      *history,
+      *history.map { |h| { role: h[:role], content: h[:content] } },
       { role: "user",      content: query }
     ]
   end
@@ -101,8 +139,8 @@ class Ai::ChatService
     raise Error, "Chat request failed: #{e.message}"
   end
 
-  def save_messages(session_id, user_query, ai_response)
-    Message.create!(session_id: session_id, role: "user",      content: user_query)
-    Message.create!(session_id: session_id, role: "assistant", content: ai_response)
+  def save_messages(user_id, user_query, ai_response)
+    # Direct DB writes for active chats are disabled to improve performance.
+    # The UserMemoryService handles Redis session writes, and ConversationSummaryJob handles DB persistence.
   end
 end

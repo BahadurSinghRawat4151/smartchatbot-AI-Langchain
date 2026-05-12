@@ -1,0 +1,11 @@
+DATABASE FIX FOR SESSION ID
+===========================
+
+Error Encountered:
+ActiveRecord::NotNullViolation - PG::NotNullViolation: ERROR: null value in column "session_id" of relation "messages" violates not-null constraint
+
+Why it happened:
+The database table `messages` was originally created with a strict rule (`null: false`) for the `session_id` column. Since we removed session logic and only save `user_id` now, the database rejected the insert.
+
+Fix Applied:
+Created a new Rails database migration to remove the `NOT NULL` constraint from the `session_id` column on the `messages` table (and `user_memories` table just to be safe). You will need to run `bin/rails db:migrate` to apply this change to your PostgreSQL database.

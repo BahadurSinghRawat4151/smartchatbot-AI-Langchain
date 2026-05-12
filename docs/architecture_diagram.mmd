@@ -1,0 +1,9 @@
+graph TD
+    A[User] -->|Interacts with| B[Chatbot Interface]
+    B -->|Sends requests to| C[Controllers]
+    C -->|Processes data with| D[Models]
+    D -->|Fetches data from| E[Database]
+    C -->|Calls services| F[AI Services]
+    F -->|Integrates with| G[External APIs]
+    C -->|Renders views| H[Frontend]
+    H -->|Displays responses to| A

@@ -1,0 +1,51 @@
+<% content_for :title, "Account | SmartChatBot" %>
+
+<main class="account-shell">
+  <section class="account-header">
+    <p class="auth-eyebrow">Account</p>
+    <h1>Manage your sign-in details.</h1>
+    <p>Your AI shopping memory is scoped to this account.</p>
+  </section>
+
+  <section class="account-grid">
+    <div class="auth-card">
+      <h2>Profile security</h2>
+
+      <%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put, class: "auth-form" }) do |f| %>
+        <%= render "devise/shared/error_messages", resource: resource %>
+
+        <div class="auth-field">
+          <%= f.label :email %>
+          <%= f.email_field :email, autofocus: true, autocomplete: "email" %>
+        </div>
+
+        <% if devise_mapping.confirmable? && resource.pending_reconfirmation? %>
+          <p class="auth-hint">Waiting confirmation for <%= resource.unconfirmed_email %>.</p>
+        <% end %>
+
+        <div class="auth-field">
+          <%= f.label :password, "New password" %>
+          <%= f.password_field :password, autocomplete: "new-password", placeholder: "Leave blank to keep current password" %>
+        </div>
+
+        <div class="auth-field">
+          <%= f.label :password_confirmation %>
+          <%= f.password_field :password_confirmation, autocomplete: "new-password" %>
+        </div>
+
+        <div class="auth-field">
+          <%= f.label :current_password %>
+          <%= f.password_field :current_password, autocomplete: "current-password", placeholder: "Required to save changes" %>
+        </div>
+
+        <%= f.submit "Update account", class: "auth-submit" %>
+      <% end %>
+    </div>
+
+    <aside class="account-danger">
+      <h2>Close account</h2>
+      <p>This removes your login. Use this only if you no longer need account-scoped assistant history.</p>
+      <%= button_to "Delete account", registration_path(resource_name), data: { confirm: "Are you sure?", turbo_confirm: "Are you sure?" }, method: :delete, class: "danger-button" %>
+    </aside>
+  </section>
+</main>

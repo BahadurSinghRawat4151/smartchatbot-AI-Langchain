@@ -27,11 +27,15 @@ Rails.application.configure do
 
   # Change to :null_store to avoid any caching.
   config.cache_store = :memory_store
+  #
+  # config.cache_store = :redis_cache_store, { url: ENV['REDIS_URL'] }
 
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :local
-
+  # https://selectively-spikiest-alfredo.ngrok-free.dev
   config.hosts << "unpridefully-noncritical-lenore.ngrok-free.dev"
+  # config.hosts << "selectively-spikiest-alfredo.ngrok-free.dev"
+
   # Don't care if the mailer can't send.
   config.action_mailer.raise_delivery_errors = false
 

@@ -1,0 +1,5 @@
+# # config/initializers/session_store.rb
+# Rails.application.config.session_store :redis_store,
+#   servers: ENV["REDIS_URL"],
+#   expire_after: 30.minutes,
+#   key: "_app_session"

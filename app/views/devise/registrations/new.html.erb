@@ -1,0 +1,38 @@
+<% content_for :title, "Create account | SmartChatBot" %>
+
+<main class="auth-shell">
+  <section class="auth-panel">
+    <div class="auth-copy">
+      <p class="auth-eyebrow">SmartChatBot</p>
+      <h1>Create your shopping account.</h1>
+      <p>Your assistant can remember relevant product needs and past shopping context across visits.</p>
+    </div>
+
+    <div class="auth-card">
+      <h2>Get started</h2>
+
+      <%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { class: "auth-form" }) do |f| %>
+        <%= render "devise/shared/error_messages", resource: resource %>
+
+        <div class="auth-field">
+          <%= f.label :email %>
+          <%= f.email_field :email, autofocus: true, autocomplete: "email", placeholder: "you@example.com" %>
+        </div>
+
+        <div class="auth-field">
+          <%= f.label :password %>
+          <%= f.password_field :password, autocomplete: "new-password", placeholder: "#{@minimum_password_length || 6}+ characters" %>
+        </div>
+
+        <div class="auth-field">
+          <%= f.label :password_confirmation %>
+          <%= f.password_field :password_confirmation, autocomplete: "new-password", placeholder: "Repeat your password" %>
+        </div>
+
+        <%= f.submit "Create account", class: "auth-submit" %>
+      <% end %>
+
+      <%= render "devise/shared/links" %>
+    </div>
+  </section>
+</main>

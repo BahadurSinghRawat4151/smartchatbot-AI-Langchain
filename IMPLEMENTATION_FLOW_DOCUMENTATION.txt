@@ -1,0 +1,767 @@
+SMARTCHATBOT IMPLEMENTATION DOCUMENTATION
+========================================
+
+This file explains what was implemented in the project, why it was done, and how
+the new chat/auth/memory flow works.
+
+
+1. BIG GOAL
+-----------
+
+The goal was to make the project follow this kind of AI chatbot flow:
+
+User query
+-> create embedding
+-> classify intent
+-> route the query
+-> if general/off-topic, use semantic cache
+-> if product/policy/cart/checkout/order, use RAG + tools + user history
+-> generate response
+-> save the correct type of history
+
+After that, Devise authentication was added so user history is scoped by:
+
+current_user.id
+
+Before this, the app only used session_id. That meant chat history belonged to a
+browser session, not a real logged-in user. Now semantic memory and visible chat
+history are linked to the signed-in user.
+
+
+2. AUTHENTICATION WITH DEVISE
+-----------------------------
+
+Devise was added and configured for user authentication.
+
+Main files:
+
+- app/models/user.rb
+- db/migrate/20260428120001_devise_create_users.rb
+- config/initializers/devise.rb
+- config/locales/devise.en.yml
+- config/routes.rb
+- app/views/devise/
+
+What this means:
+
+- Users can sign up.
+- Users can sign in.
+- Users can sign out.
+- Users can edit their account.
+- Users can reset their password.
+
+The User model uses these Devise modules:
+
+- database_authenticatable
+- registerable
+- recoverable
+- rememberable
+- validatable
+
+In simple words:
+
+- database_authenticatable lets users log in with email and password.
+- registerable lets users create accounts.
+- recoverable lets users reset forgotten passwords.
+- rememberable lets users stay signed in.
+- validatable checks email and password rules.
+
+
+3. GLOBAL LOGIN REQUIREMENT
+---------------------------
+
+File:
+
+- app/controllers/application_controller.rb
+
+This line was added:
+
+before_action :authenticate_user!
+
+What it does:
+
+Every normal page now requires login.
+
+If a visitor is not signed in, Devise sends them to the sign-in page.
+
+Why:
+
+The diagram says the user is authenticated. Also, the app now saves AI memory
+using current_user.id, so the app must know who the user is.
+
+Exception:
+
+Stripe webhooks are server-to-server requests, not browser user requests. So
+this file skips authentication:
+
+- app/controllers/webhooks_controller.rb
+
+It has:
+
+skip_before_action :authenticate_user!
+
+Why:
+
+Stripe cannot log in like a normal user. If authentication stayed on for the
+webhook, Stripe callbacks would fail.
+
+
+4. AUTH PAGE DESIGN
+-------------------
+
+Custom Devise views were created under:
+
+- app/views/devise/sessions/new.html.erb
+- app/views/devise/registrations/new.html.erb
+- app/views/devise/registrations/edit.html.erb
+- app/views/devise/passwords/new.html.erb
+- app/views/devise/passwords/edit.html.erb
+- app/views/devise/shared/_links.html.erb
+- app/views/devise/shared/_error_messages.html.erb
+
+CSS was added in:
+
+- app/assets/stylesheets/application.css
+
+What was designed:
+
+- Sign-in page
+- Sign-up page
+- Account edit page
+- Password reset page
+- Flash messages
+- Top navigation for signed-in users
+
+Why:
+
+The default Devise pages are plain. The new pages match the existing chatbot /
+shopping assistant style.
+
+
+5. LAYOUT CHANGES
+-----------------
+
+File:
+
+- app/views/layouts/application.html.erb
+
+Before:
+
+The chat widget appeared directly in the layout for everyone.
+
+Now:
+
+If the user is signed in:
+
+- show top navigation
+- show Products link
+- show Cart link
+- show Account link
+- show Sign out button
+- show the chatbot widget
+
+If the user is not signed in:
+
+- only show the Devise auth page
+- do not show the chatbot widget
+
+Why:
+
+The chatbot now depends on current_user.id. It should only be available after
+login.
+
+
+6. NEW CHAT FLOW
+----------------
+
+Main file:
+
+- app/controllers/chat_controller.rb
+
+The new flow is:
+
+1. Read the user query.
+2. Create one embedding for the query.
+3. Classify the query intent.
+4. Route the query.
+5. Use the correct branch.
+
+The flow in simple text:
+
+query
+-> embedding
+-> intent classifier
+-> general/off-topic branch OR product/policy/cart/checkout/order branch
+
+
+7. EMBEDDING STEP
+-----------------
+
+File:
+
+- app/services/ai/embedding_service.rb
+
+This service creates a vector embedding for user text.
+
+Model used:
+
+sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+
+Why:
+
+Embeddings let the app compare meaning, not just exact words.
+
+Example:
+
+"hi"
+"hello"
+"namaste"
+
+These are different words, but semantically similar.
+
+The embedding is reused by:
+
+- intent classifier
+- semantic cache
+- product RAG search
+- user memory search
+
+Important improvement:
+
+The query is embedded once in ChatController and reused. This avoids duplicate
+API calls.
+
+
+8. INTENT CLASSIFIER
+--------------------
+
+File:
+
+- app/services/ai/intent_classifier_service.rb
+
+This service decides what kind of query the user asked.
+
+Supported intents:
+
+- general
+- off_topic
+- product
+- policy
+- cart
+- checkout
+- order_status
+
+Routes:
+
+- general and off_topic go to the general route
+- product, policy, cart, checkout, and order_status go to the product route
+
+Why:
+
+Before this change, every cache miss went to product RAG search. That was not
+correct.
+
+Example:
+
+"hello"
+
+This should not search products. It should use the general/off-topic flow.
+
+Example:
+
+"show me laptops"
+
+This should search products.
+
+Example:
+
+"what is your return policy"
+
+This should go to the policy/product tool route.
+
+
+9. GENERAL / OFF-TOPIC FLOW
+---------------------------
+
+Main files:
+
+- app/controllers/chat_controller.rb
+- app/services/ai/query_cache_service.rb
+- app/services/ai/chat_service.rb
+
+Flow:
+
+general/off-topic query
+-> semantic cache lookup
+-> if cache hit, return cached answer
+-> if cache miss, call chat model
+-> save answer to cache
+-> return response
+
+Why cache only this branch:
+
+General replies are safe to reuse.
+
+Examples:
+
+- hello
+- thank you
+- what can you do
+- off-topic redirects
+
+These answers usually do not depend on current product stock, cart state, or
+checkout state.
+
+
+10. SEMANTIC CACHE
+------------------
+
+Main files:
+
+- app/services/ai/query_cache_service.rb
+- app/models/cached_query.rb
+- db/migrate/20260422103537_create_cached_queries.rb
+
+The semantic cache stores:
+
+- query text
+- query embedding
+- AI response
+- product ids, if any
+- hit count
+
+Now QueryCacheService does not create embeddings by itself.
+
+Before:
+
+find_cached(query)
+
+It embedded the query internally.
+
+Now:
+
+find_cached(query: query, embedding: embedding)
+
+Why:
+
+The controller already creates the embedding once. Passing it into the cache
+avoids extra HuggingFace calls.
+
+Deduplication:
+
+Before saving a new cache entry, the service checks if a semantically similar
+entry already exists.
+
+Why:
+
+This avoids DB bloat and duplicate cache rows.
+
+
+11. PRODUCT / POLICY / CART / CHECKOUT / ORDER FLOW
+---------------------------------------------------
+
+Main files:
+
+- app/controllers/chat_controller.rb
+- app/services/ai/rag_service.rb
+- app/services/ai/user_memory_service.rb
+- app/services/ai/agent_tools_service.rb
+- app/services/ai/chat_service.rb
+
+Flow:
+
+product/policy/cart/checkout/order query
+-> load relevant user memory from pgvector
+-> run RAG/product search
+-> build tool context
+-> call chat model
+-> save user history
+-> return response
+
+Why this branch does not use the semantic cache:
+
+Product and cart answers can change.
+
+Examples:
+
+- stock can change
+- prices can change
+- cart can change
+- checkout state can change
+- user history can change
+
+So returning a cached product/cart answer could be stale or wrong.
+
+
+12. RAG SERVICE
+---------------
+
+File:
+
+- app/services/ai/rag_service.rb
+
+This service searches products.
+
+It uses:
+
+- pgvector semantic search
+- keyword search for names and brands
+- cosine similarity reranking
+
+Why:
+
+Semantic search helps find products by meaning.
+
+Keyword search helps catch exact brand/product terms.
+
+Example:
+
+If user says:
+
+"show me Samsung phones"
+
+Keyword search helps catch "Samsung".
+
+Semantic search helps catch related meaning.
+
+
+13. AGENT TOOLS SERVICE
+-----------------------
+
+File:
+
+- app/services/ai/agent_tools_service.rb
+
+This service creates tool-style context for the AI model.
+
+Supported contexts:
+
+- ProductSearch
+- Cart
+- Checkout
+- PolicyRAG
+- OrderStatus
+
+Important:
+
+This does not yet perform real cart mutations from chat.
+
+It gives the model safe context about:
+
+- what is in the cart
+- whether checkout is possible
+- whether order tracking exists
+- whether policy docs exist
+- whether matching products were found
+
+Why:
+
+It is safer to expose context first before letting the AI perform real actions
+like adding/removing cart items.
+
+
+14. USER MEMORY
+---------------
+
+Main files:
+
+- app/models/user_memory.rb
+- app/services/ai/user_memory_service.rb
+- db/migrate/20260428120000_create_user_memories.rb
+- db/migrate/20260428120002_scope_user_memories_to_users.rb
+
+User memory stores semantic history.
+
+It stores:
+
+- user_id
+- role
+- intent
+- content
+- embedding
+
+The user_id comes from:
+
+current_user.id
+
+Why:
+
+The diagram says user history should be user_id scoped.
+
+Before:
+
+The project used session_id only.
+
+Problem:
+
+If the browser session changed, the history would not clearly belong to the real
+user.
+
+Now:
+
+Semantic memory belongs to the logged-in user.
+
+How loading works:
+
+When a product/policy/cart/checkout/order query comes in, the app searches
+UserMemory using pgvector and returns top relevant past turns.
+
+Why:
+
+The model can remember useful past shopping context.
+
+Example:
+
+Past query:
+
+"I prefer Samsung phones"
+
+Future query:
+
+"show me something under 20000"
+
+The app can retrieve the Samsung preference as relevant memory.
+
+
+15. VISIBLE CHAT HISTORY
+------------------------
+
+Main files:
+
+- app/models/message.rb
+- app/services/ai/chat_service.rb
+- app/controllers/chat_controller.rb
+- db/migrate/20260428120003_scope_messages_to_users.rb
+
+Visible chat history is the normal conversation shown in the widget.
+
+Before:
+
+Message history was loaded by session_id.
+
+Now:
+
+Message history is loaded by current_user.id.
+
+Important:
+
+The session_id column still exists. It is kept as compatibility metadata.
+
+New behavior:
+
+Message.history_for_user(current_user.id)
+
+Why:
+
+If the user logs in again, the chat transcript can still belong to the account,
+not only the browser session.
+
+
+16. CHAT SERVICE
+----------------
+
+File:
+
+- app/services/ai/chat_service.rb
+
+This service calls the chat model.
+
+Model:
+
+openai/gpt-oss-120b:groq
+
+It now accepts:
+
+- query
+- products
+- session_id
+- user_id
+- intent
+- memory
+- tool_context
+
+Why:
+
+The model needs more than only product context now.
+
+It receives:
+
+- current intent
+- tool context
+- relevant user history
+- available products
+- normal recent message history
+
+This makes responses more accurate and closer to the diagram.
+
+
+17. DATABASE CHANGES
+--------------------
+
+New tables:
+
+users
+
+Created by Devise.
+
+Important columns:
+
+- email
+- encrypted_password
+- reset_password_token
+- reset_password_sent_at
+- remember_created_at
+
+user_memories
+
+Created for semantic AI memory.
+
+Important columns:
+
+- user_id
+- session_id
+- role
+- intent
+- content
+- embedding
+
+messages
+
+Updated to include:
+
+- user_id
+
+cached_queries
+
+Still used for general/off-topic semantic cache.
+
+products
+
+Still used for product RAG search.
+
+
+18. WHY USER_ID AND SESSION_ID BOTH EXIST
+----------------------------------------
+
+user_id:
+
+This is the real account owner.
+
+Used for:
+
+- semantic user memory
+- visible chat history
+
+session_id:
+
+This is still present for compatibility and metadata.
+
+Why not remove it immediately:
+
+The app already had session-based messages. Keeping session_id avoids a risky
+large refactor and leaves a useful debug trail.
+
+
+19. FINAL FLOW IN SIMPLE WORDS
+------------------------------
+
+When a signed-in user sends a chat message:
+
+1. Rails knows the user because of Devise.
+2. ChatController gets current_user.id.
+3. The query is embedded.
+4. The intent classifier decides the route.
+5. If it is general/off-topic:
+   - check semantic cache
+   - return cached answer if possible
+   - otherwise call AI and save cache
+6. If it is product/policy/cart/checkout/order:
+   - load relevant user memory using current_user.id
+   - search products/context
+   - build tool context
+   - call AI
+   - save semantic memory using current_user.id
+7. The response is returned to the user.
+
+
+20. COMMANDS THAT WERE RUN
+--------------------------
+
+Devise setup:
+
+bin/rails generate devise:install
+bin/rails generate devise User
+bin/rails generate devise:views
+
+Database:
+
+bin/rails db:migrate
+
+Verification:
+
+ruby -c app/controllers/application_controller.rb
+ruby -c app/controllers/chat_controller.rb
+ruby -c app/services/ai/chat_service.rb
+ruby -c app/services/ai/user_memory_service.rb
+ruby -c app/models/user.rb
+ruby -c app/models/message.rb
+ruby -c app/models/user_memory.rb
+bin/rails zeitwerk:check
+bin/rails routes -g user
+bin/rails runner model checks
+
+
+21. CURRENT LIMITATIONS
+-----------------------
+
+PolicyRAG is not a real policy document index yet.
+
+Right now it gives conservative context saying no dedicated policy index exists.
+
+OrderStatus is not real order tracking yet.
+
+Right now it tells the model that order records are not stored in this app yet.
+
+Cart tools do not yet mutate cart state from chat.
+
+Right now they provide cart context only.
+
+Why:
+
+Changing cart or order state from AI should be done carefully. The current step
+adds the structure first without risky hidden side effects.
+
+
+22. NEXT GOOD IMPROVEMENTS
+--------------------------
+
+Good next steps would be:
+
+1. Add a policy document table with pgvector embeddings.
+2. Add real order model/history.
+3. Add safe chat tools for cart actions.
+4. Add tests for intent routing.
+5. Add tests for user-scoped memory.
+6. Add a small admin or seed process for policy/context documents.
+
+
+23. SHORT SUMMARY
+-----------------
+
+The project now has:
+
+- Devise authentication
+- signed-in-only chatbot
+- current_user.id scoped AI memory
+- current_user.id scoped visible chat history
+- semantic intent routing
+- general/off-topic semantic cache
+- product/policy/cart/checkout RAG + tool context path
+- styled auth pages
+- pgvector user memory storage
+
+In simple words:
+
+The chatbot is now account-aware. It knows who is asking, routes the question
+properly, caches only safe general answers, and saves useful shopping memory for
+future product-related conversations.

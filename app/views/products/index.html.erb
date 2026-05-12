@@ -1,0 +1,35 @@
+<div style="max-width: 1200px; margin: 0 auto; padding: 2rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <h1>Our Products</h1>
+    <%= link_to "View Cart", cart_path, style: "padding: 10px 20px; background: #333; color: white; text-decoration: none; border-radius: 5px;" %>
+  </div>
+
+  <% if @products.any? %>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 2rem;">
+      <% @products.each do |product| %>
+        <div style="border: 1px solid #ddd; padding: 1rem; border-radius: 8px;">
+          <% if product.image_url.present? %>
+            <%= image_tag product.image_url, alt: product.name, style: "width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; margin-bottom: 1rem;" %>
+          <% else %>
+            <div style="width: 100%; aspect-ratio: 4 / 3; background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #999; font-size: 0.9rem; border-radius: 4px; margin-bottom: 1rem;">
+              <%= image_tag "images_default.png", style: "width: 50px; height: 50px; opacity: 0.5;" %>
+            </div>
+          <% end %>
+          <h3 style="margin-top: 0;"><%= link_to product.name, product_path(product), style: "text-decoration: none; color: #000;" %></h3>
+          <p style="color: #666; font-size: 0.9rem;"><%= product.brand %> | <%= product.category %></p>
+          <p><strong>₹<%= product.price %></strong></p>
+          <div style="display: flex; gap: 10px; margin-top: 1rem;">
+            <%= link_to "View Details", product_path(product), style: "flex: 1; text-align: center; padding: 8px; background: #eee; text-decoration: none; color: #333; border-radius: 4px;" %>
+            <%= button_to "Add to Cart", add_item_cart_path(product_id: product.id), method: :post, style: "flex: 1; padding: 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p>No products found in the database. Run the AI CSV import!</p>
+  <% end %>
+
+  <div style="margin-top: 3rem;">
+    <%= link_to "← Back to AI Assistant", root_path %>
+  </div>
+</div>
