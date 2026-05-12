@@ -28,7 +28,7 @@ gem "pgvector"
 gem "sidekiq", "~> 7.0"
 gem "sidekiq-scheduler", "~> 5.0"
 gem "redis", "~> 5.0"
-gem "connection_pool", "~> 2.4"
+gem "connection_pool", "~> 3.0"
 
 # Optional: For better Redis monitoring
 gem "redis-namespace", "~> 1.10"
